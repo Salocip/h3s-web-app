@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>H3S Web App</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --line: #2a2f3a;
+        --fg: #e6e9ef;
+        --muted: #8b93a3;
+        --accent: #56b6ff;
+        --ok: #4ade80;
+        --warn: #fbbf24;
+        --err: #f87171;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.45 ui-monospace, "JetBrains Mono", monospace;
+      }
+      main { max-width: 880px; margin: 0 auto; padding: 28px 20px 64px; }
+      h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+      .sub { color: var(--muted); margin: 0 0 24px; }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 14px;
+      }
+      section h2 {
+        font-size: 11px;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 12px;
+        font-weight: 600;
+      }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      button {
+        background: #232833;
+        color: var(--fg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 12px;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) { border-color: var(--accent); }
+      button.primary { background: #1d4ed8; border-color: #1d4ed8; }
+      button.active { background: #1e3a5f; border-color: var(--accent); }
+      button.cycle {
+        font-size: 16px;
+        padding: 14px 22px;
+        min-width: 260px;
+        text-align: left;
+        background: #1e293b;
+        border-color: #334155;
+      }
+      button:disabled { opacity: .45; cursor: default; }
+      input, select {
+        background: #0c0e13;
+        color: var(--fg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 10px;
+        font: inherit;
+      }
+      input[type="number"] { width: 76px; }
+      input#raw { flex: 1; min-width: 220px; }
+      dl { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin: 0; }
+      dt { color: var(--muted); }
+      dd { margin: 0; }
+      .pill {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 1px 9px;
+        color: var(--muted);
+      }
+      .pill.ok { color: var(--ok); border-color: #245c39; }
+      .pill.off { color: var(--err); border-color: #5c2424; }
+      #log {
+        height: 260px;
+        overflow: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 12.5px;
+      }
+      #log li { padding: 2px 0; border-bottom: 1px solid #1d212a; white-space: pre-wrap; }
+      #log .tx { color: var(--accent); }
+      #log .rx { color: var(--ok); }
+      #log .sys { color: var(--warn); }
+      #log .err { color: var(--err); }
+      .hint { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+      .status { margin: 12px 0 0; color: var(--muted); }
+      .status.ok { color: var(--ok); }
+      .status.err { color: var(--err); }
+      .status.busy { color: var(--warn); }
+      details { margin: 0 0 14px; }
+      details > summary {
+        color: var(--muted);
+        cursor: pointer;
+        padding: 6px 2px;
+        font-size: 12px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+      .warn {
+        color: var(--warn);
+        border: 1px solid #5c4a1a;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin: 0 0 14px;
+      }
+      code { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>H3S Web App</h1>
+      <p class="sub">
+        Minimal BLE control for QCY earbuds and headsets. Protocols recovered from
+        QCY 4.0.7. Chromium or Chrome required.
+      </p>
+
+      <p id="noBt" class="warn" hidden>
+        Web Bluetooth is disabled in this browser. On Linux, launch Chromium with
+        <code>--enable-features=WebBluetooth</code> (see <code>run.sh</code>).
+      </p>
+
+      <p id="connError" class="warn" hidden>
+        <span id="connErrorText"></span>
+        <span class="row" style="margin-top: 8px">
+          <button id="pickLe" hidden>Show all devices</button>
+        </span>
+      </p>
+
+      <section>
+        <h2>Device</h2>
+        <div class="row">
+          <button id="connect" class="primary">Connect</button>
+          <button id="reconnect" hidden>Reconnect saved device</button>
+          <button id="disconnect" disabled>Disconnect</button>
+          <span id="state" class="pill off">disconnected</span>
+          <span id="name"></span>
+        </div>
+        <dl style="margin-top: 12px">
+          <dt>Service</dt>
+          <dd id="svc">not found</dd>
+          <dt>Characteristics</dt>
+          <dd id="chars">—</dd>
+        </dl>
+        <dl id="familyRow" style="margin-top: 8px" hidden>
+          <dt>Protocol</dt>
+          <dd id="family">—</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>Status</h2>
+        <dl>
+          <dt>Battery</dt>
+          <dd id="battery">—</dd>
+          <dt>Firmware</dt>
+          <dd id="version">—</dd>
+          <dt>Noise mode</dt>
+          <dd id="noiseMode">—</dd>
+          <dt id="noiseLevelLabel">Noise level</dt>
+          <dd id="noiseLevel">—</dd>
+        </dl>
+        <p id="fwStatus" class="status"></p>
+        <div class="row" style="margin-top: 12px">
+          <button id="readBattery" disabled>Read battery</button>
+          <button id="readVersion" disabled>Read firmware</button>
+          <button id="checkFw" disabled>Check for updates</button>
+          <button id="readAnc" disabled>Read state</button>
+          <button id="readNoise" disabled>Read noise level</button>
+          <button id="readSnapshot" disabled>Read snapshot</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Noise control</h2>
+        <div class="row">
+          <button id="cycleAnc" class="cycle" disabled>Noise: —</button>
+        </div>
+        <div class="row" id="cycleEditor" style="margin-top: 10px">
+          <span class="hint">Cycle through:</span>
+          <select data-slot="0" aria-label="first mode"></select>
+          <select data-slot="1" aria-label="second mode"></select>
+          <select data-slot="2" aria-label="third mode"></select>
+        </div>
+        <p id="cycleNext" class="hint">connect to enable noise control</p>
+        <p id="ancStatus" class="status">connect to enable noise control</p>
+        <p class="hint">
+          Pick up to three modes above; the button cycles through them in order.
+          The label shows the mode the device reports, so it always reflects
+          reality.
+        </p>
+      </section>
+
+      <section>
+        <h2>Equalizer</h2>
+        <div class="row" id="eqPresets">
+          <button data-eq="1" disabled>Spatial</button>
+          <button data-eq="2" disabled>Default</button>
+          <button data-eq="3" disabled>Pop</button>
+          <button data-eq="4" disabled>Heavy Bass</button>
+          <button data-eq="5" disabled>Rock</button>
+          <button data-eq="6" disabled>Soft</button>
+          <button data-eq="7" disabled>Classic</button>
+          <button data-eq="240" disabled>Vocal boost</button>
+        </div>
+        <p id="eqStatus" class="status">connect to read equalizer</p>
+        <p class="hint">
+          Presets come from QCY's H3S panel. Vocal boost is a custom curve: less
+          rumble and mud, more presence around 1-4 kHz. The highlighted button is
+          what the device reports back.
+        </p>
+      </section>
+
+      <details>
+        <summary>Advanced: raw commands</summary>
+        <section>
+          <h2>Direct presets</h2>
+          <div class="row" id="presets">
+            <button data-preset="2,0" title="Noise cancelling and transparency both off" disabled>Off / normal</button>
+            <button data-preset="1,5" title="Device picks the ANC level itself" disabled>Adaptive ANC</button>
+            <button data-preset="1,1" title="Maximum noise cancelling" disabled>Max ANC (noisy)</button>
+            <button data-preset="1,2" title="ANC tuned for traffic and trains" disabled>Commuting ANC</button>
+            <button data-preset="1,3" title="ANC tuned for rooms and offices" disabled>Indoor ANC</button>
+            <button data-preset="1,4" title="ANC that ignores wind noise" disabled>Anti-wind ANC</button>
+            <button data-preset="3,1" title="Lets outside sound in" disabled>Transparency</button>
+            <select id="ancLevel" hidden>
+              <option value="0">level 0</option>
+              <option value="1">level 1</option>
+              <option value="2">level 2</option>
+            </select>
+          </div>
+        </section>
+
+        <section id="qcyOnly" style="margin-top: 12px">
+          <h2>Noise mode — cmd 12 (0xA001 models only)</h2>
+          <div class="row">
+            <button data-mode="0" disabled>Off</button>
+            <button data-mode="1" disabled>ANC</button>
+            <button data-mode="2" disabled>Transparency</button>
+            <button data-mode="3" disabled>Mode 3</button>
+          </div>
+          <p class="hint">Ignored by Jieli devices such as the H3S.</p>
+        </section>
+
+        <section>
+          <h2>ANC setting — cmd 23 (mode, scene, level)</h2>
+          <div class="row">
+            <input id="ancMode" type="number" min="0" max="255" value="1" />
+            <input id="ancScene" type="number" min="0" max="255" value="0" />
+            <input id="ancLevelCustom" type="number" min="0" max="255" value="0" />
+            <button id="sendAnc" disabled>Send</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Raw console</h2>
+        <div class="row">
+          <input id="raw" placeholder="17 03 01 01 02   or   FE 01 17" />
+          <button id="sendRaw" disabled>Send</button>
+        </div>
+        <p class="hint">
+          Bytes are QCY command blocks (<code>cmd len payload…</code>). A leading
+          <code>FF</code> frame envelope is stripped on Jieli devices and added on
+          0xA001 devices.
+        </p>
+        </section>
+      </details>
+
+      <section>
+        <h2>Log</h2>
+        <ol id="log"></ol>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
